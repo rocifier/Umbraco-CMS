@@ -485,8 +485,12 @@
     <Compile Include="Media\Exif\TIFFStrip.cs" />
     <Compile Include="Media\Exif\Utility.cs" />
     <Compile Include="Persistence\Migrations\Upgrades\TargetVersionSevenThreeOne\UpdateUserLanguagesToIsoCode.cs" />
+    <Compile Include="Persistence\NoSqlRepositories\AzureRecycleBinRepository.cs" />
     <Compile Include="Persistence\NoSqlRepositories\AzureTablesRepositoryBase.cs" />
     <Compile Include="Persistence\NoSqlRepositories\AzureTablesUnitOfWork.cs" />
+    <Compile Include="Persistence\NoSqlRepositories\ContentPreviewRepository.cs" />
+    <Compile Include="Persistence\NoSqlRepositories\ContentRepository.cs" />
+    <Compile Include="Persistence\NoSqlRepositories\ContentXmlRepository.cs" />
     <Compile Include="Persistence\NoSqlRepositories\IAzureTablesUnitOfWork.cs" />
     <Compile Include="Persistence\NoSqlRepositories\Interfaces\IContentRepository.cs" />
     <Compile Include="Persistence\NoSqlRepositories\Interfaces\IDeleteMediaFilesRepository.cs" />

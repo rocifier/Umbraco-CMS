@@ -34,10 +34,7 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
         }
 
         #region Abstract Methods
-
-        protected abstract Sql GetBaseQuery(bool isCount);
-        protected abstract string GetBaseWhereClause();
-        protected abstract IEnumerable<string> GetDeleteClauses();
+        
         protected abstract Guid NodeObjectTypeId { get; }
         protected abstract override void PersistNewItem(TEntity entity);
         protected abstract override void PersistUpdatedItem(TEntity entity);
