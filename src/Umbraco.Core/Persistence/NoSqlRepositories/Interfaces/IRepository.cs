@@ -44,6 +44,11 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
         /// <param name="id"></param>
         /// <returns></returns>
         bool Exists(TId id);
+
+        /// <summary>
+        /// Gets the entity count for a specific filter
+        /// </summary>
+        int Count(string filter);
     }
     
     public interface IWriteRepository<in TId, TEntity> : IRepository

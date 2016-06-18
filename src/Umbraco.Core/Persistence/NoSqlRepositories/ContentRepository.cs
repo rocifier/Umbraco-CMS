@@ -17,35 +17,33 @@ using Umbraco.Core.Persistence.Factories;
 using Umbraco.Core.Persistence.Querying;
 using Umbraco.Core.Configuration.UmbracoSettings;
 using Umbraco.Core.Persistence.NoSqlRepositories.Interfaces;
+using Microsoft.WindowsAzure.Storage.Table;
+using Microsoft.WindowsAzure.Storage;
 
 namespace Umbraco.Core.Persistence.NoSqlRepositories
 {
+
     /// <summary>
     /// Represents a repository for doing CRUD operations for <see cref="IContent"/>
     /// </summary>
     internal class ContentRepository : AzureRecycleBinRepository<int, IContent>, IContentRepository
     {
-        private readonly Repositories.IContentTypeRepository _contentTypeRepository;
-        private readonly Repositories.ITemplateRepository _templateRepository;
-        private readonly Repositories.ITagRepository _tagRepository;
+        private readonly ITagRepository _tagRepository;
+        private readonly ITemplateRepository _templateRepository;
         private readonly CacheHelper _cacheHelper;
         private readonly ContentPreviewRepository<IContent> _contentPreviewRepository;
         private readonly ContentXmlRepository<IContent> _contentXmlRepository;
 
-        public ContentRepository(IAzureTablesUnitOfWork work, CacheHelper cacheHelper, ILogger logger, Repositories.IContentTypeRepository contentTypeRepository, 
-            Repositories.ITemplateRepository templateRepository, Repositories.ITagRepository tagRepository, IContentSection contentSection)
+        public ContentRepository(IAzureTablesUnitOfWork work, CacheHelper cacheHelper, ILogger logger, ITemplateRepository templateRepository, ITagRepository tagRepository, IContentSection contentSection)
             : base(work, cacheHelper, logger, contentSection)
         {
-            if (contentTypeRepository == null) throw new ArgumentNullException("contentTypeRepository");
             if (templateRepository == null) throw new ArgumentNullException("templateRepository");
             if (tagRepository == null) throw new ArgumentNullException("tagRepository");
-            _contentTypeRepository = contentTypeRepository;
             _templateRepository = templateRepository;
             _tagRepository = tagRepository;
             _cacheHelper = cacheHelper;
             _contentPreviewRepository = new ContentPreviewRepository<IContent>(work, CacheHelper.CreateDisabledCacheHelper(), logger);
             _contentXmlRepository = new ContentXmlRepository<IContent>(work, CacheHelper.CreateDisabledCacheHelper(), logger);
-
             EnsureUniqueNaming = true;
         }
 
@@ -55,38 +53,50 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
 
         protected override IContent PerformGet(int id)
         {
-            var sql = GetBaseQuery(false)
-                .Where(GetBaseWhereClause(), new { Id = id })
-                .Where<DocumentDto>(x => x.Newest)
-                .OrderByDescending<ContentVersionDto>(x => x.VersionDate);
+            CloudTable table = UnitOfWork.Database.GetTableReference("umb_content");
 
-            var dto = Database.Fetch<DocumentDto, ContentVersionDto, ContentDto, NodeDto, DocumentPublishedReadOnlyDto>(sql).FirstOrDefault();
+            string filter = string.Format("PartitionKey eq '{0}' and RowKey eq {1} and Newest eq {2}", "content", id.ToString(), "true");
+            TableQuery <DynamicTableEntity> projectionQuery = new TableQuery<DynamicTableEntity>().Where(filter);
+            
+            dynamic dto = table.ExecuteQuery(projectionQuery).FirstOrDefault();
 
-            if (dto == null)
-                return null;
+            IContentType contentType = dto.ContentVersionDto.ContentDto.ContentType;
+            var template = _templateRepository.GetTemplate(dto.Template);
+            var content = CreateContentFromDto(dto, contentType, template, dto.Properties);
 
-            var content = CreateContentFromDto(dto, dto.ContentVersionDto.VersionId, sql);
+            return content;
+        }
+        
+        protected override IContent PerformGet(string filter)
+        {
+            CloudTable table = UnitOfWork.Database.GetTableReference("umb_content");
+            TableQuery<DynamicTableEntity> projectionQuery = new TableQuery<DynamicTableEntity>().Where(filter);
+
+            dynamic dto = table.ExecuteQuery(projectionQuery).FirstOrDefault();
+
+            IContentType contentType = dto.ContentVersionDto.ContentDto.ContentType;
+            var template = _templateRepository.GetTemplate(dto.Template);
+            var content = CreateContentFromDto(dto, contentType, template, dto.Properties);
 
             return content;
         }
 
-        protected override IContent PerformGet(string filter)
-        {
-            throw new NotImplementedException();
-        }
-
         protected override IEnumerable<IContent> PerformGetAll(params int[] ids)
         {
-            var sql = GetBaseQuery(false);
-            if (ids.Any())
-            {
-                sql.Where("umbracoNode.id in (@ids)", new { ids = ids });
-            }
+            CloudTable table = UnitOfWork.Database.GetTableReference("umb_content");
 
-            //we only want the newest ones with this method
-            sql.Where<DocumentDto>(x => x.Newest);
+            var filterClauses = ids.Select(id => string.Format("(RowKey eq {0})", id));
+            var repeatedOr = string.Join(" or ", filterClauses);
+            string filter = string.Format("PartitionKey eq '{0}' and {1}", "content", repeatedOr);
+            TableQuery<DynamicTableEntity> projectionQuery = new TableQuery<DynamicTableEntity>().Where(filter);
 
-            return ProcessQuery(sql);
+            dynamic dto = table.ExecuteQuery(projectionQuery).FirstOrDefault();
+
+            IContentType contentType = dto.ContentVersionDto.ContentDto.ContentType;
+            var template = _templateRepository.GetTemplate(dto.Template);
+            var content = CreateContentFromDto(dto, contentType, template, dto.Properties);
+
+            return content;
         }
         
         #endregion
@@ -97,6 +107,7 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
         {
             //We need to clear out all access rules but we need to do this in a manual way since 
             // nothing in that table is joined to a content id
+            /*
             var subQuery = new Sql()
                 .Select("umbracoAccessRule.accessId")
                 .From<AccessRuleDto>(SqlSyntax)
@@ -104,6 +115,8 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
                 .On<AccessRuleDto, AccessDto>(SqlSyntax, left => left.AccessId, right => right.Id)
                 .Where<AccessDto>(dto => dto.NodeId == entity.Id);
             Database.Execute(SqlSyntax.GetDeleteSubquery("umbracoAccessRule", "accessId", subQuery));
+            */
+            throw new NotImplementedException("Commented code needs implementing before methods is complete");
 
             //now let the normal delete clauses take care of everything else
             base.PersistDeletedItem(entity);
@@ -416,6 +429,7 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
 
         #region Implementation of IContentRepository
 
+        /*
         public IEnumerable<IContent> GetByPublishedVersion(string filter)
         {
             // we WANT to return contents in top-down order, ie parents should come before children
@@ -450,6 +464,12 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
                     yield return CreateContentFromDto(dto, dto.VersionId, sql);
                 }
             }
+        }
+        */
+
+        public IEnumerable<IContent> GetByPublishedVersion(string filter)
+        {
+            throw new NotImplementedException();
         }
 
         public int CountPublished()
@@ -535,6 +555,7 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
         /// <param name="orderBySystemField">Flag to indicate when ordering by system field</param>
         /// <param name="filter">Search text filter</param>
         /// <returns>An Enumerable list of <see cref="IContent"/> objects</returns>
+        /*
         public IEnumerable<IContent> GetPagedResultsByQuery(IQuery<IContent> query, long pageIndex, int pageSize, out long totalRecords,
             string orderBy, Direction orderDirection, bool orderBySystemField, string filter = "")
         {
@@ -558,6 +579,12 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
                 ProcessQuery, orderBy, orderDirection, orderBySystemField,
                 filterCallback);
 
+        }
+        */
+
+        public IEnumerable<IContent> GetPagedResults(string filter, int pageIndex, int pageSize, out long totalRecords, string orderBy, Direction orderDirection, bool orderBySystemField)
+        {
+            throw new NotImplementedException();
         }
 
         #endregion
@@ -610,7 +637,7 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
             ((Entity)content).ResetDirtyProperties(false);
             return content;
         }
-        
+
         private string EnsureUniqueNodeName(int parentId, string nodeName, int id = 0)
         {
             if (EnsureUniqueNaming == false)
@@ -651,21 +678,10 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
         /// </remarks>
         protected override void DisposeResources()
         {
-            _contentTypeRepository.Dispose();
             _templateRepository.Dispose();
             _tagRepository.Dispose();
             _contentPreviewRepository.Dispose();
             _contentXmlRepository.Dispose();
-        }
-
-        public IEnumerable<IContent> GetByPublishedVersion(string filter)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IEnumerable<IContent> GetPagedResults(string filter, int pageIndex, int pageSize, out long totalRecords, string orderBy, Direction orderDirection, bool orderBySystemField)
-        {
-            throw new NotImplementedException();
         }
 
         public bool DeleteMediaFiles(IEnumerable<string> files)

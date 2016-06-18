@@ -496,7 +496,10 @@
     <Compile Include="Persistence\NoSqlRepositories\Interfaces\IDeleteMediaFilesRepository.cs" />
     <Compile Include="Persistence\NoSqlRepositories\Interfaces\IRecycleBinRepository.cs" />
     <Compile Include="Persistence\NoSqlRepositories\Interfaces\IRepository.cs" />
+    <Compile Include="Persistence\NoSqlRepositories\Interfaces\ITagRepository.cs" />
+    <Compile Include="Persistence\NoSqlRepositories\Interfaces\ITemplateRepository.cs" />
     <Compile Include="Persistence\NoSqlRepositories\RepositoryBase.cs" />
+    <Compile Include="Persistence\NoSqlRepositories\TemplateRepository.cs" />
     <Compile Include="Persistence\RecordPersistenceType.cs" />
     <Compile Include="Persistence\Relators\AccessRulesRelator.cs" />
     <Compile Include="Persistence\Repositories\AuditRepository.cs" />
