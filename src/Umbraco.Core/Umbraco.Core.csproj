@@ -116,6 +116,10 @@
       <HintPath>..\packages\Newtonsoft.Json.6.0.8\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="ObjectFlattenerRecomposer, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\ObjectFlattenerRecomposer.1.1.3\lib\net45\ObjectFlattenerRecomposer.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Owin">
       <HintPath>..\packages\Owin.1.0\lib\net40\Owin.dll</HintPath>
     </Reference>
@@ -405,6 +409,7 @@
     <Compile Include="Models\IServerRegistration.cs" />
     <Compile Include="Models\Mapping\MappingExpressionExtensions.cs" />
     <Compile Include="Models\MigrationEntry.cs" />
+    <Compile Include="Models\NoSql\NoSqlDocumentDto.cs" />
     <Compile Include="Models\PartialViewType.cs" />
     <Compile Include="Models\PublicAccessEntry.cs" />
     <Compile Include="Models\PublicAccessRule.cs" />
@@ -434,6 +439,8 @@
     <Compile Include="Models\UmbracoDomain.cs" />
     <Compile Include="Models\DoNotCloneAttribute.cs" />
     <Compile Include="Models\IDomain.cs" />
+    <Compile Include="Persistence\Converters\Azure\ContentTypeConverter.cs" />
+    <Compile Include="Persistence\Converters\Azure\FlatEntityConverter.cs" />
     <Compile Include="Persistence\DatabaseNodeLockExtensions.cs" />
     <Compile Include="Persistence\Factories\ExternalLoginFactory.cs" />
     <Compile Include="Persistence\Factories\MigrationEntryFactory.cs" />
@@ -443,6 +450,7 @@
     <Compile Include="Persistence\LockedRepository.cs" />
     <Compile Include="Persistence\LockingRepository.cs" />
     <Compile Include="Persistence\Mappers\AccessMapper.cs" />
+    <Compile Include="Persistence\Converters\Azure\IEntityConverter.cs" />
     <Compile Include="Persistence\Mappers\DomainMapper.cs" />
     <Compile Include="Persistence\Mappers\MigrationEntryMapper.cs" />
     <Compile Include="Persistence\Migrations\Upgrades\TargetVersionFourOneZero\AddPreviewXmlTable.cs" />
@@ -488,21 +496,6 @@
     <Compile Include="Media\Exif\TIFFStrip.cs" />
     <Compile Include="Media\Exif\Utility.cs" />
     <Compile Include="Persistence\Migrations\Upgrades\TargetVersionSevenThreeOne\UpdateUserLanguagesToIsoCode.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\AzureRecycleBinRepository.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\AzureTablesRepositoryBase.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\AzureTablesUnitOfWork.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\ContentPreviewRepository.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\ContentRepository.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\ContentXmlRepository.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\IAzureTablesUnitOfWork.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\Interfaces\IContentRepository.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\Interfaces\IDeleteMediaFilesRepository.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\Interfaces\IRecycleBinRepository.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\Interfaces\IRepository.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\Interfaces\ITagRepository.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\Interfaces\ITemplateRepository.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\RepositoryBase.cs" />
-    <Compile Include="Persistence\NoSqlRepositories\TemplateRepository.cs" />
     <Compile Include="Persistence\RecordPersistenceType.cs" />
     <Compile Include="Persistence\Relators\AccessRulesRelator.cs" />
     <Compile Include="Persistence\Repositories\AuditRepository.cs" />

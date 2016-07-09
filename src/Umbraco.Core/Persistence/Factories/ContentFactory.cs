@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Globalization;
 using Umbraco.Core.Models;
+using Umbraco.Core.Models.NoSql;
 using Umbraco.Core.Models.Rdbms;
 
 namespace Umbraco.Core.Persistence.Factories
@@ -148,5 +149,68 @@ namespace Umbraco.Core.Persistence.Factories
 
             return nodeDto;
         }
+
+        public IContent BuildEntity(NoSqlDocumentDto dto)
+        {
+            var content = new Content(dto.Name, dto.ParentId, _contentType)
+            {
+                Id = _id,
+                Key = new Guid(dto.RowKey),
+                Name = dto.Name,
+                NodeName = dto.Name,
+                Path = dto.Path,
+                CreatorId = dto.CreatorUserId,
+                WriterId = dto.WriterUserId,
+                Level = dto.Level,
+                ParentId = dto.ParentId,
+                SortOrder = dto.SortOrder,
+                Trashed = dto.Trashed,
+                Published = dto.Published,
+                CreateDate = dto.CreateDate,
+                UpdateDate = dto.UpdateDate,
+                ExpireDate = dto.ExpiresDate,
+                ReleaseDate = dto.ReleaseDate,
+                Version = dto.VersionId,
+                PublishedState = dto.Published ? PublishedState.Published : PublishedState.Unpublished,
+                PublishedVersionGuid = dto.PublishedReadOnlyVersion == null ? default(Guid) : dto.PublishedReadOnlyVersion
+            };
+            //on initial construction we don't want to have dirty properties tracked
+            // http://issues.umbraco.org/issue/U4-1946
+            content.ResetDirtyProperties(false);
+            return content;
+        }
+
+        public NoSqlDocumentDto BuildNoSqlDocumentDto(IContent entity)
+        {
+            var documentDto = new NoSqlDocumentDto
+            {
+                ETag = "*",
+                Newest = true,
+                PartitionKey = entity.Id.ToString(),
+                Published = entity.Published,
+                Name = entity.Name,
+                UpdateDate = entity.UpdateDate,
+                WriterUserId = entity.WriterId,
+                VersionId = entity.Version,
+                ExpiresDate = entity.ExpireDate == null ? default(DateTime) : entity.ExpireDate.Value,
+                ReleaseDate = entity.ReleaseDate == null ? default(DateTime) : entity.ReleaseDate.Value,
+                ParentId = entity.ParentId,
+                Path = entity.Path,
+                CreateDate = entity.CreateDate,
+                ContentTypeId = entity.ContentTypeId,
+                CreatorUserId = entity.CreatorId,
+                Level = (short)entity.Level,
+                NodeObjectType = _nodeObjectTypeId,
+                PublishedReadOnlyVersion = entity.PublishedVersionGuid,
+                RowKey = entity.Key.ToString(),
+                SortOrder = entity.SortOrder,
+                Trashed = entity.Trashed,
+                Template_Alias = "",
+                Template_Design = ""
+            };
+            
+            return documentDto;
+        }
+
     }
 }

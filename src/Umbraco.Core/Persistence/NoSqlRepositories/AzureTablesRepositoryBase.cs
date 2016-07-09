@@ -7,7 +7,7 @@ using Umbraco.Core.Models.EntityBase;
 namespace Umbraco.Core.Persistence.NoSqlRepositories
 {
     /// <summary>
-    /// Represent an abstract Repository for PetaPoco based repositories
+    /// Represent an abstract Repository for Azure Table Storage based repositories
     /// </summary>
     /// <typeparam name="TId"></typeparam>
     /// <typeparam name="TEntity"></typeparam>

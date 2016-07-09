@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.Linq;
-using System.Text;
 using System.Xml.Linq;
 using Umbraco.Core.Dynamics;
 using Umbraco.Core.Logging;
@@ -11,34 +10,41 @@ using Umbraco.Core.Models;
 using Umbraco.Core.Models.EntityBase;
 using Umbraco.Core.Models.Membership;
 using Umbraco.Core.Models.Rdbms;
-using Umbraco.Core.Cache;
 using Umbraco.Core.Persistence.DatabaseModelDefinitions;
 using Umbraco.Core.Persistence.Factories;
-using Umbraco.Core.Persistence.Querying;
 using Umbraco.Core.Configuration.UmbracoSettings;
 using Umbraco.Core.Persistence.NoSqlRepositories.Interfaces;
 using Microsoft.WindowsAzure.Storage.Table;
-using Microsoft.WindowsAzure.Storage;
+using Umbraco.Core.Persistence.Converters.Azure;
+using Umbraco.Core.Models.NoSql;
 
 namespace Umbraco.Core.Persistence.NoSqlRepositories
 {
 
     /// <summary>
-    /// Represents a repository for doing CRUD operations for <see cref="IContent"/>
+    /// Represents a repository for doing NoSql CRUD operations for <see cref="IContent"/>
     /// </summary>
     internal class ContentRepository : AzureRecycleBinRepository<int, IContent>, IContentRepository
     {
+        private readonly IContentTypeRepository _contentTypeRepository;
+        private readonly IPropertiesRepository _propertiesRepository;
         private readonly ITagRepository _tagRepository;
         private readonly ITemplateRepository _templateRepository;
         private readonly CacheHelper _cacheHelper;
         private readonly ContentPreviewRepository<IContent> _contentPreviewRepository;
         private readonly ContentXmlRepository<IContent> _contentXmlRepository;
-
-        public ContentRepository(IAzureTablesUnitOfWork work, CacheHelper cacheHelper, ILogger logger, ITemplateRepository templateRepository, ITagRepository tagRepository, IContentSection contentSection)
+        private readonly IDtoEntityConverter _contentConverter;
+        
+        public ContentRepository(IAzureTablesUnitOfWork work, CacheHelper cacheHelper, ILogger logger, ITemplateRepository templateRepository, 
+            ITagRepository tagRepository, IContentSection contentSection, IDtoEntityConverter contentConverter, 
+            IContentTypeRepository contentTypeRepository, IPropertiesRepository propertiesRepository)
             : base(work, cacheHelper, logger, contentSection)
         {
             if (templateRepository == null) throw new ArgumentNullException("templateRepository");
             if (tagRepository == null) throw new ArgumentNullException("tagRepository");
+            _contentTypeRepository = contentTypeRepository;
+            _propertiesRepository = propertiesRepository;
+            _contentConverter = contentConverter;
             _templateRepository = templateRepository;
             _tagRepository = tagRepository;
             _cacheHelper = cacheHelper;
@@ -57,14 +63,23 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
 
             string filter = string.Format("PartitionKey eq '{0}' and RowKey eq {1} and Newest eq {2}", "content", id.ToString(), "true");
             TableQuery <DynamicTableEntity> projectionQuery = new TableQuery<DynamicTableEntity>().Where(filter);
-            
-            dynamic dto = table.ExecuteQuery(projectionQuery).FirstOrDefault();
 
-            IContentType contentType = dto.ContentVersionDto.ContentDto.ContentType;
-            var template = _templateRepository.GetTemplate(dto.Template);
-            var content = CreateContentFromDto(dto, contentType, template, dto.Properties);
+            DynamicTableEntity entity = table.ExecuteQuery(projectionQuery).FirstOrDefault();
+            var dto = _contentConverter.TableEntityToDto<DocumentDto>(entity);
 
-            return content;
+            //Check in the cache first. If it exists there AND it is published
+            // then we can use that entity. Otherwise if it is not published (which can be the case
+            // because we only store the 'latest' entries in the cache which might not be the published
+            // version)
+            var fromCache = RuntimeCache.GetCacheItem(GetCacheIdKey<IContent>(dto.NodeId));
+            if (fromCache != null && ((IContent)fromCache).Published)
+            {
+                yield return fromCache;
+            }
+            else
+            {
+                yield return CreateContentFromDto(dto, dto.VersionId, sql);
+            }
         }
         
         protected override IContent PerformGet(string filter)
@@ -74,11 +89,7 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
 
             dynamic dto = table.ExecuteQuery(projectionQuery).FirstOrDefault();
 
-            IContentType contentType = dto.ContentVersionDto.ContentDto.ContentType;
-            var template = _templateRepository.GetTemplate(dto.Template);
-            var content = CreateContentFromDto(dto, contentType, template, dto.Properties);
-
-            return content;
+            return _contentConverter.DynamicToContent(dto);
         }
 
         protected override IEnumerable<IContent> PerformGetAll(params int[] ids)
@@ -92,11 +103,7 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
 
             dynamic dto = table.ExecuteQuery(projectionQuery).FirstOrDefault();
 
-            IContentType contentType = dto.ContentVersionDto.ContentDto.ContentType;
-            var template = _templateRepository.GetTemplate(dto.Template);
-            var content = CreateContentFromDto(dto, contentType, template, dto.Properties);
-
-            return content;
+            return _contentConverter.DynamicToContent(dto);
         }
         
         #endregion
@@ -116,7 +123,7 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
                 .Where<AccessDto>(dto => dto.NodeId == entity.Id);
             Database.Execute(SqlSyntax.GetDeleteSubquery("umbracoAccessRule", "accessId", subQuery));
             */
-            throw new NotImplementedException("Commented code needs implementing before methods is complete");
+            throw new NotImplementedException("Commented code needs implementing before method is complete");
 
             //now let the normal delete clauses take care of everything else
             base.PersistDeletedItem(entity);
@@ -469,6 +476,22 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
 
         public IEnumerable<IContent> GetByPublishedVersion(string filter)
         {
+            // Note: We want to return contents in top-down order here, ie. parents before children.
+
+            CloudTable table = UnitOfWork.Database.GetTableReference("umb_content");
+            string baseFilter = string.Format("(PartitionKey eq '{0}' and Published eq true)", "content");
+            if (filter.Length > 0) filter = baseFilter + " and (" + filter + ")";
+            TableQuery<DynamicTableEntity> projectionQuery = new TableQuery<DynamicTableEntity>().Where(filter);
+
+            List<DynamicTableEntity> dto = table.ExecuteQuery(projectionQuery).ToList();
+            dto.Sort((x,y) => x.Length);
+
+            IContentType contentType = dto.ContentVersionDto.ContentDto.ContentType;
+            var template = _templateRepository.GetTemplate(dto.Template);
+            var content = CreateContentFromDto(dto, contentType, template, dto.Properties);
+
+            return content;
+
             throw new NotImplementedException();
         }
 
@@ -611,27 +634,23 @@ namespace Umbraco.Core.Persistence.NoSqlRepositories
         /// <param name="template"></param>
         /// <param name="propCollection"></param>
         /// <returns></returns>
-        private IContent CreateContentFromDto(DocumentDto dto,
-            IContentType contentType,
-            ITemplate template,
-            Models.PropertyCollection propCollection)
+        private IContent CreateContentFromDto(NoSqlDocumentDto dto)
         {
-            var factory = new ContentFactory(contentType, NodeObjectTypeId, dto.NodeId);
+            var contentType = _contentTypeRepository.Get(dto.ContentTypeId);
+            int NodeId = int.Parse(dto.PartitionKey);
+
+            var docdef = new DocumentDefinition(
+                NodeId,
+                dto.VersionId,
+                dto.VersionDate,
+                dto.CreateDate,
+                contentType);
+            var properties = _propertiesRepository.Get(docdef);
+            
+            var factory = new ContentFactory(contentType, NodeObjectTypeId, NodeId);
             var content = factory.BuildEntity(dto);
-
-            //Check if template id is set on DocumentDto, and get ITemplate if it is.
-            if (dto.TemplateId.HasValue && dto.TemplateId.Value > 0)
-            {
-                content.Template = template ?? _templateRepository.Get(dto.TemplateId.Value);
-            }
-            else
-            {
-                //ensure there isn't one set.
-                content.Template = null;
-            }
-
-            content.Properties = propCollection;
-
+            content.Properties = properties;
+            
             //on initial construction we don't want to have dirty properties tracked
             // http://issues.umbraco.org/issue/U4-1946
             ((Entity)content).ResetDirtyProperties(false);
